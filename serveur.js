@@ -15,7 +15,7 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' } });
 
-app.use(express.static(path.join(__dirname, '../joueur')));
+app.use(express.static(path.join(__dirname, 'joueur')));
 
 const rooms = {};
 
