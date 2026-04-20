@@ -4,13 +4,25 @@
 
 const RED_SUITS = ['♥', '♦'];
 
+// ── 🃏 Rendu d'une carte (CORRIGÉ : utilise les vraies classes CSS) ──
 function renderCard(card) {
   if (card.hidden) return `<div class="card hidden"></div>`;
-  const r = RED_SUITS.includes(card.suit);
-  return `<div class="card ${r ? 'red' : 'black-card'}">
-    <span class="card-val">${card.rank}</span>
-    <span class="card-suit">${card.suit}</span>
-  </div>`;
+  const isRed = RED_SUITS.includes(card.suit);
+  const cls   = isRed ? 'red' : 'black-card';
+  return `
+    <div class="card ${cls}">
+      <div class="ci-tl">
+        <span class="ci-rank">${card.rank}</span>
+        <span class="ci-suit">${card.suit}</span>
+      </div>
+      <div class="ci-center">
+        <span class="ci-suit-lg">${card.suit}</span>
+      </div>
+      <div class="ci-br">
+        <span class="ci-rank">${card.rank}</span>
+        <span class="ci-suit">${card.suit}</span>
+      </div>
+    </div>`;
 }
 
 function renderHandValue(hand, total) {
@@ -43,12 +55,12 @@ function showBlackjackCelebration(name) {
       animation:coinFall ${dur}s ${delay}s linear infinite;pointer-events:none">${s}</span>`;
   }
   el.innerHTML = `${rain}
-    <div style="font-family:'Playfair Display',serif;
+    <div style="font-family:'Cinzel Decorative',serif;
       font-size:clamp(3rem,15vw,9rem);font-weight:900;color:var(--gold);
       text-shadow:0 0 80px rgba(201,168,76,.95),0 0 160px rgba(201,168,76,.5);
       animation:bjPulse .55s ease-in-out infinite alternate;
       text-align:center;z-index:1;line-height:1.05">✦ BLACK JACK ✦</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-style:italic;
+    <div style="font-family:'Cinzel',serif;font-style:italic;
       font-size:clamp(1.1rem,4.5vw,2rem);color:var(--cream);
       margin-top:16px;z-index:1;letter-spacing:.08em;text-align:center">${name}</div>
     <div style="margin-top:24px;font-size:.72rem;color:rgba(245,239,224,.3);
@@ -91,10 +103,10 @@ function updateBetTimer(state) {
   if (state.phase !== 'betting' || !state.betTimerEnd) { el.style.display = 'none'; return; }
 
   el.style.display = 'flex';
+  const totalSec = state.gameOptions?.betTimerSec || 45;
   function tick() {
     const rem = Math.max(0, Math.ceil((state.betTimerEnd - Date.now()) / 1000));
-    // Anneau SVG
-    const pct = rem / 45;
+    const pct = rem / totalSec;
     const r = 20, circ = 2 * Math.PI * r;
     const dash = pct * circ;
     el.innerHTML = `
@@ -105,12 +117,55 @@ function updateBetTimer(state) {
           stroke-dasharray="${dash} ${circ}" stroke-linecap="round"
           style="transition:stroke-dasharray .5s linear"/>
       </svg>
-      <span style="position:absolute;font-family:'Playfair Display',serif;font-size:.95rem;
+      <span style="position:absolute;font-family:'Cinzel',serif;font-size:.95rem;
         color:${rem <= 10 ? '#e74c3c' : 'var(--gold)'};">${rem}</span>`;
     if (rem <= 0) clearInterval(_timerInterval);
   }
   tick();
   _timerInterval = setInterval(tick, 500);
+}
+
+// ── 🛡 Phase Assurance ────────────────────────────────────────
+function renderInsurancePhase(state, mySocketId) {
+  const zone = document.getElementById('playersZone');
+  if (!zone) return;
+  zone.innerHTML = '';
+
+  const me = state.players.find(p => p.socketId === mySocketId);
+  if (!me || me.role !== 'player' || me.isBot) return;
+
+  const maxInsurance = Math.floor(me.bet / 2);
+  const already = me.insuranceBet > 0 || me.insuranceDeclined;
+
+  const div = document.createElement('div');
+  div.className = 'player-card active';
+  div.innerHTML = `
+    <div class="pc-name">${me.name} <em style="font-size:.72rem;opacity:.6">(vous)</em></div>
+    <div class="pc-balance">Solde : ${me.balance}$</div>
+    <div style="margin:14px 0;padding:14px;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.3);border-radius:10px;text-align:center">
+      <div style="font-family:'Cinzel',serif;font-size:.88rem;color:var(--gold);margin-bottom:8px;letter-spacing:.06em">🛡 Assurance proposée</div>
+      <div style="font-size:.8rem;color:var(--cream-dim);margin-bottom:12px">
+        Le croupier montre un As.<br>Assurance max : <strong style="color:var(--gold)">${maxInsurance}$</strong>
+      </div>
+      ${already
+        ? `<div style="color:#2ecc71;font-size:.85rem">✓ ${me.insuranceBet > 0 ? `Assurance prise : ${me.insuranceBet}$` : 'Assurance refusée'}</div>`
+        : `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button onclick="window.gameActions.takeInsurance(${maxInsurance})"
+              style="background:linear-gradient(135deg,var(--gold-dk),var(--gold));border:none;border-radius:9px;
+                     padding:11px 20px;color:#050f09;font-family:'Cinzel',serif;font-weight:700;
+                     font-size:.82rem;cursor:pointer;min-height:44px;letter-spacing:.08em">
+              ✓ Prendre (${maxInsurance}$)
+            </button>
+            <button onclick="window.gameActions.declineInsurance()"
+              style="background:none;border:1px solid rgba(185,28,28,.45);color:#f87171;border-radius:9px;
+                     padding:11px 20px;font-family:'Cinzel',serif;font-size:.82rem;cursor:pointer;min-height:44px">
+              ✕ Refuser
+            </button>
+          </div>`}
+    </div>
+    <div class="hand">${me.hand.map(renderCard).join('')}</div>
+    <div class="hand-value">${renderHandValue(me.hand, me.handTotal)}</div>`;
+  zone.appendChild(div);
 }
 
 // ── 📱 Barre d'actions mobile ─────────────────────────────────
@@ -189,13 +244,85 @@ function renderLobby(state, mySocketId) {
       hz.innerHTML += `<button onclick="window.gameActions.addBot()"
         style="flex:1;background:rgba(41,128,185,.12);border:1px solid rgba(41,128,185,.35);
                color:#5dade2;border-radius:10px;padding:11px 12px;cursor:pointer;
-               font-family:'Cormorant Garamond',serif;font-size:.93rem;min-height:44px">🤖 Ajouter un bot</button>`;
+               font-family:'Cinzel',serif;font-size:.93rem;min-height:44px">🤖 Ajouter un bot</button>`;
     }
+
+    // ── Options de partie (NOUVEAU) ──
+    const opts = state.gameOptions || {};
+    hz.innerHTML += `
+      <button onclick="document.getElementById('optionsPanel').style.display=document.getElementById('optionsPanel').style.display==='none'?'block':'none'"
+        style="flex:1;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);
+               color:var(--gold-dk);border-radius:10px;padding:11px 12px;cursor:pointer;
+               font-family:'Cinzel',serif;font-size:.93rem;min-height:44px">⚙ Options</button>`;
+
+    let op = document.getElementById('optionsPanel');
+    if (!op) {
+      op = document.createElement('div');
+      op.id = 'optionsPanel';
+      op.style.cssText = 'display:none;width:100%;margin-top:8px;background:rgba(0,0,0,.25);border:1px solid rgba(201,168,76,.2);border-radius:12px;padding:14px;';
+      hz.after(op);
+    }
+    op.innerHTML = `
+      <div style="font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:12px">Options de la partie</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem">
+          <span>Nombre de paquets</span>
+          <select id="optNumDecks" onchange="window.gameActions.setOptions()"
+            style="background:#0d2418;border:1px solid rgba(201,168,76,.3);color:var(--cream);
+                   border-radius:6px;padding:6px 10px;font-family:'Cinzel',serif;font-size:.8rem">
+            <option value="1" ${(opts.numDecks||2)===1?'selected':''}>1 paquet</option>
+            <option value="2" ${(opts.numDecks||2)===2?'selected':''}>2 paquets</option>
+            <option value="4" ${(opts.numDecks||2)===4?'selected':''}>4 paquets</option>
+            <option value="6" ${(opts.numDecks||2)===6?'selected':''}>6 paquets</option>
+            <option value="8" ${(opts.numDecks||2)===8?'selected':''}>8 paquets</option>
+          </select>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem">
+          <span>Paiement Blackjack</span>
+          <select id="optBjPayout" onchange="window.gameActions.setOptions()"
+            style="background:#0d2418;border:1px solid rgba(201,168,76,.3);color:var(--cream);
+                   border-radius:6px;padding:6px 10px;font-family:'Cinzel',serif;font-size:.8rem">
+            <option value="1.5" ${(opts.bjPayout||1.5)===1.5?'selected':''}>3:2 (standard)</option>
+            <option value="1.2" ${(opts.bjPayout||1.5)===1.2?'selected':''}>6:5</option>
+            <option value="1"   ${(opts.bjPayout||1.5)===1?'selected':''}>1:1</option>
+          </select>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem">
+          <span>Timer de mise (sec)</span>
+          <select id="optBetTimer" onchange="window.gameActions.setOptions()"
+            style="background:#0d2418;border:1px solid rgba(201,168,76,.3);color:var(--cream);
+                   border-radius:6px;padding:6px 10px;font-family:'Cinzel',serif;font-size:.8rem">
+            <option value="30" ${(opts.betTimerSec||45)===30?'selected':''}>30 s</option>
+            <option value="45" ${(opts.betTimerSec||45)===45?'selected':''}>45 s</option>
+            <option value="60" ${(opts.betTimerSec||45)===60?'selected':''}>60 s</option>
+          </select>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem">
+          <span>Mise max par manche</span>
+          <select id="optMaxBet" onchange="window.gameActions.setOptions()"
+            style="background:#0d2418;border:1px solid rgba(201,168,76,.3);color:var(--cream);
+                   border-radius:6px;padding:6px 10px;font-family:'Cinzel',serif;font-size:.8rem">
+            <option value="500"  ${(opts.maxBet||500)===500?'selected':''}>500$</option>
+            <option value="1000" ${(opts.maxBet||500)===1000?'selected':''}>1000$</option>
+            <option value="9999" ${(opts.maxBet||500)===9999?'selected':''}>Illimité</option>
+          </select>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem">
+          <span>Splits max</span>
+          <select id="optMaxSplits" onchange="window.gameActions.setOptions()"
+            style="background:#0d2418;border:1px solid rgba(201,168,76,.3);color:var(--cream);
+                   border-radius:6px;padding:6px 10px;font-family:'Cinzel',serif;font-size:.8rem">
+            <option value="1" ${(opts.maxSplits||1)===1?'selected':''}>1 split</option>
+            <option value="3" ${(opts.maxSplits||1)===3?'selected':''}>3 splits</option>
+          </select>
+        </label>
+      </div>`;
   }
+
   hz.innerHTML += `<button onclick="window.gameActions.showInvite()"
     style="flex:1;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.3);
            color:var(--gold);border-radius:10px;padding:11px 12px;cursor:pointer;
-           font-family:'Cormorant Garamond',serif;font-size:.93rem;min-height:44px">♠ Inviter</button>`;
+           font-family:'Cinzel',serif;font-size:.93rem;min-height:44px">♠ Inviter</button>`;
 
   const btnStart = document.getElementById('btnStart');
   const waitMsg  = document.getElementById('waitingMsg');
@@ -215,9 +342,9 @@ function renderLobby(state, mySocketId) {
       btnStart.textContent = solo ? '▶ Jouer en Solo' : '▶ Lancer la partie';
       btnStart.disabled = false;
       if (info) {
-        if (!hasDealer)       info.textContent = '🎩 Croupier bot ajouté automatiquement';
+        if (!hasDealer)        info.textContent = '🎩 Croupier bot ajouté automatiquement';
         else if (!playerCount) info.textContent = '🤖 Joueur bot ajouté automatiquement';
-        else                  info.textContent = `${playerCount} joueur${playerCount>1?'s':''} prêt${playerCount>1?'s':''}`;
+        else                   info.textContent = `${playerCount} joueur${playerCount>1?'s':''} présent${playerCount>1?'s':''}`;
       }
     } else {
       btnStart.style.display = 'none';
@@ -240,20 +367,20 @@ function renderRoomList(rooms) {
   if (!el) return;
   el.style.display = '';
   if (rooms.length === 0) {
-    el.innerHTML = `<div style="text-align:center;color:var(--gold-dark);font-style:italic;
+    el.innerHTML = `<div style="text-align:center;color:var(--gold-dk);font-style:italic;
       padding:12px;background:rgba(0,0,0,.15);border-radius:10px;border:1px solid rgba(201,168,76,.1);margin-bottom:10px">
       Aucune salle disponible</div>`;
     return;
   }
-  el.innerHTML = `<div style="font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-dark);margin-bottom:8px">Salles disponibles</div>`
+  el.innerHTML = `<div style="font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:8px">Salles disponibles</div>`
     + rooms.map(r => `
       <div data-code="${r.code}" onclick="window.UI.selectRoom('${r.code}',this)"
         style="display:flex;align-items:center;justify-content:space-between;
                background:rgba(0,0,0,.2);border:1px solid rgba(201,168,76,.2);
                border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .2s;min-height:58px">
         <div>
-          <div style="font-family:'Playfair Display',serif;color:var(--gold);font-size:1rem;letter-spacing:.18em">${r.code}</div>
-          <div style="font-size:.76rem;color:var(--gold-dark);margin-top:2px">
+          <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;letter-spacing:.18em">${r.code}</div>
+          <div style="font-size:.76rem;color:var(--gold-dk);margin-top:2px">
             👑 ${r.host} · ${r.dealer?'🎩 Croupier':'⏳ sans croupier'} · ${r.players}J${r.bots>0?' · '+r.bots+'🤖':''}
           </div>
         </div>
@@ -279,7 +406,7 @@ function renderDealerZone(state, mySocketId) {
     const allReady    = state.allPlayersReady;
     acts.innerHTML = `
       <div style="text-align:center;width:100%">
-        <div style="font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold-dark);margin-bottom:7px">
+        <div style="font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:7px">
           Votre mise (optionnelle)
         </div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px">
@@ -294,7 +421,7 @@ function renderDealerZone(state, mySocketId) {
           ${dealer.bet>0?`<button class="btn-clr" onclick="window.gameActions.clearBet()" style="margin-left:8px">✕</button>`:''}
         </div>
         <div style="font-size:.8rem;margin-bottom:10px;
-          color:${allReady?'#2ecc71':'var(--gold-dark)'}">
+          color:${allReady?'#2ecc71':'var(--gold-dk)'}">
           ${totalHumans>0?`${readyCount}/${totalHumans} joueur${totalHumans>1?'s':''} prêt${readyCount>1?'s':''}`:''} 
           ${allReady?'✓ Tous prêts !':''}
         </div>
@@ -310,6 +437,12 @@ function renderDealerZone(state, mySocketId) {
 
 // ── Zone joueurs ──────────────────────────────────────────────
 function renderPlayersZone(state, mySocketId) {
+  // Si phase assurance, rendu spécial
+  if (state.phase === 'insurance') {
+    renderInsurancePhase(state, mySocketId);
+    return;
+  }
+
   const zone = document.getElementById('playersZone');
   if (!zone) return;
   zone.innerHTML = '';
@@ -323,7 +456,6 @@ function renderPlayersZone(state, mySocketId) {
     const div = document.createElement('div');
     div.className = `player-card${isActive?' active':''}${isDone&&!isActive?' done':''}`;
 
-    // Badge
     let badge = '';
     if (isActive && !p.isBot) badge = `<div class="active-badge">${p.playingSplit?'✂ Main 2':'À vous !'}</div>`;
     if (isActive && p.isBot)  badge = `<div class="active-badge" style="background:#2980b9">🤖…</div>`;
@@ -334,10 +466,11 @@ function renderPlayersZone(state, mySocketId) {
     // Section mise (phase betting, humain)
     let bet = '';
     if (state.phase === 'betting' && isMe && !p.isBot) {
+      const maxBet  = state.gameOptions?.maxBet || 500;
       const canReady = p.bet > 0 && !p.ready;
       const isReady  = p.ready;
       bet = `<div class="bet-section">
-        <div class="bet-label">Mise</div>
+        <div class="bet-label">Mise (max ${maxBet}$)</div>
         <div class="chips">
           <div class="chip c5"   onclick="window.gameActions.placeBet(5)">5</div>
           <div class="chip c10"  onclick="window.gameActions.placeBet(10)">10</div>
@@ -352,7 +485,7 @@ function renderPlayersZone(state, mySocketId) {
         ${canReady ? `<button onclick="window.gameActions.playerReady()"
           style="margin-top:9px;width:100%;background:rgba(39,174,96,.15);
                  border:1px solid #27ae60;color:#2ecc71;border-radius:9px;
-                 padding:10px;cursor:pointer;font-family:'Cormorant Garamond',serif;
+                 padding:10px;cursor:pointer;font-family:'Cinzel',serif;
                  font-size:.93rem;min-height:42px;transition:all .2s"
           onmouseover="this.style.background='rgba(39,174,96,.25)'"
           onmouseout="this.style.background='rgba(39,174,96,.15)'">
@@ -361,9 +494,10 @@ function renderPlayersZone(state, mySocketId) {
         ${isReady ? `<div style="color:#2ecc71;font-size:.8rem;margin-top:7px;text-align:center">✓ Prêt !</div>` : ''}
       </div>`;
     } else if (p.bet > 0) {
+      const insLabel = p.insuranceBet > 0 ? ` <span style="font-size:.7rem;color:#5dade2"> + Assurance ${p.insuranceBet}$</span>` : '';
       bet = `<div class="bet-display" style="margin-bottom:10px">
-        Mise : <span class="bet-amount">${p.bet}$</span>
-        ${p.isBot?'<span style="font-size:.7rem;color:var(--gold-dark)"> auto</span>':''}
+        Mise : <span class="bet-amount">${p.bet}$</span>${insLabel}
+        ${p.isBot?'<span style="font-size:.7rem;color:var(--gold-dk)"> auto</span>':''}
       </div>`;
     }
 
@@ -377,7 +511,7 @@ function renderPlayersZone(state, mySocketId) {
           <div style="flex:1;background:${m1Active?'rgba(201,168,76,.08)':'rgba(0,0,0,.15)'};
                       border:1px solid ${m1Active?'var(--gold)':'rgba(201,168,76,.18)'};
                       border-radius:9px;padding:7px;text-align:center">
-            <div style="font-size:.65rem;color:var(--gold-dark);margin-bottom:3px;letter-spacing:.1em">MAIN 1 · ${p.bet}$</div>
+            <div style="font-size:.65rem;color:var(--gold-dk);margin-bottom:3px;letter-spacing:.1em">MAIN 1 · ${p.bet}$</div>
             <div class="hand" style="min-height:60px;justify-content:center">${p.hand.map(renderCard).join('')}</div>
             <div class="hand-value" style="font-size:.78rem;margin-top:4px">${renderHandValue(p.hand, p.handTotal)}</div>
             ${p.busted?'<div style="font-size:.68rem;color:#e74c3c;margin-top:2px">Bust</div>':p.stood?'<div style="font-size:.68rem;color:#2980b9;margin-top:2px">Stand</div>':''}
@@ -385,7 +519,7 @@ function renderPlayersZone(state, mySocketId) {
           <div style="flex:1;background:${m2Active?'rgba(201,168,76,.08)':'rgba(0,0,0,.15)'};
                       border:1px solid ${m2Active?'var(--gold)':'rgba(201,168,76,.18)'};
                       border-radius:9px;padding:7px;text-align:center">
-            <div style="font-size:.65rem;color:var(--gold-dark);margin-bottom:3px;letter-spacing:.1em">MAIN 2 · ${p.splitBet}$</div>
+            <div style="font-size:.65rem;color:var(--gold-dk);margin-bottom:3px;letter-spacing:.1em">MAIN 2 · ${p.splitBet}$</div>
             <div class="hand" style="min-height:60px;justify-content:center">${(p.splitHand||[]).map(renderCard).join('')}</div>
             <div class="hand-value" style="font-size:.78rem;margin-top:4px">${renderHandValue(p.splitHand||[], p.splitHandTotal)}</div>
             ${p.splitBusted?'<div style="font-size:.68rem;color:#e74c3c;margin-top:2px">Bust</div>':p.splitStood?'<div style="font-size:.68rem;color:#2980b9;margin-top:2px">Stand</div>':''}
@@ -444,6 +578,12 @@ function renderResults(state, mySocketId) {
     const label  = p.result==='win'?'Gagné !':p.result==='push'?'Égalité':'Perdu';
     const gain   = p.gain>0?`+${p.gain}$`:p.gain===0?'±0$':`${p.gain}$`;
     const isMe   = p.socketId === mySocketId;
+    // Résultat assurance
+    const insHtml = (p.insuranceBet > 0)
+      ? `<div style="font-size:.75rem;color:#5dade2;margin-top:4px">
+           🛡 Assurance: ${p.insuranceResult==='win'?`+${p.insuranceBet*2}$`:`-${p.insuranceBet}$`}
+         </div>` : '';
+
     const c = document.createElement('div');
     c.className = `result-card ${p.result||''}`;
     c.style.animationDelay = `${i*.1}s`;
@@ -454,10 +594,11 @@ function renderResults(state, mySocketId) {
       </div>
       <div class="r-outcome ${p.result||''}">${label}</div>
       <div class="r-money">${gain}</div>
+      ${insHtml}
       <div class="r-balance">Solde : ${p.balance}$</div>
       ${p.isSplit && p.splitResult ? `
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,168,76,.2)">
-          <div style="font-size:.68rem;color:var(--gold-dark);margin-bottom:4px;letter-spacing:.1em;text-transform:uppercase">✂ Main 2 (split)</div>
+          <div style="font-size:.68rem;color:var(--gold-dk);margin-bottom:4px;letter-spacing:.1em;text-transform:uppercase">✂ Main 2 (split)</div>
           <div style="font-size:.76rem;color:rgba(245,239,224,.42);margin-bottom:5px">
             ${(p.splitHand||[]).map(c=>`${c.rank}${c.suit}`).join(' ')}
           </div>
@@ -476,14 +617,25 @@ function renderResults(state, mySocketId) {
   if (el && dealer) {
     const t = dealer.handTotal||0;
     el.textContent = t>21?`Bust (${t})`:String(t);
+    if (isBlackjack_check(dealer.hand)) el.textContent += ' — Blackjack !';
   }
-  // Afficher aussi la balance du croupier
-  const dealerBalEl = document.getElementById('dealerBalance');
-  if (dealerBalEl && dealer) dealerBalEl.textContent = `Solde croupier : ${dealer.balance}$`;
 
   const me = state.players.find(p => p.socketId === mySocketId);
   const btnNR = document.getElementById('btnNewRound');
   if (btnNR) btnNR.style.display = (me?.role==='dealer'||state.hostSocketId===mySocketId)?'':'none';
+}
+
+// Helper local pour éviter la dépendance à gameLogic côté client
+function isBlackjack_check(hand) {
+  if (!hand) return false;
+  const visible = hand.filter(c => !c.hidden);
+  if (visible.length !== 2) return false;
+  const total = visible.reduce((sum, c) => {
+    if (['J','Q','K'].includes(c.rank)) return sum + 10;
+    if (c.rank === 'A') return sum + 11;
+    return sum + parseInt(c.rank, 10);
+  }, 0);
+  return total === 21;
 }
 
 // ── Phase banner ──────────────────────────────────────────────
@@ -492,11 +644,12 @@ function renderPhaseBanner(state) {
   if (!el) return;
   const cur = state.players[state.currentPlayerIdx];
   const map = {
-    lobby:   "Salle d'attente",
-    betting: 'Phase de mise — Placez vos paris',
-    playing: cur ? `Tour de ${cur.name}${cur.isBot?' 🤖':''}${cur.playingSplit?' — ✂ Main 2':''}` : '',
-    dealer:  'Tour du croupier',
-    results: 'Fin de la manche ✦',
+    lobby:     "Salle d'attente",
+    betting:   'Phase de mise — Placez vos paris',
+    insurance: '🛡 Assurance — Le croupier montre un As',
+    playing:   cur ? `Tour de ${cur.name}${cur.isBot?' 🤖':''}${cur.playingSplit?' — ✂ Main 2':''}` : '',
+    dealer:    'Tour du croupier',
+    results:   'Fin de la manche ✦',
   };
   el.textContent = map[state.phase] || '';
 }
@@ -527,12 +680,12 @@ function showInviteModal(code) {
   const link = `${location.origin}?code=${code}`;
   m.innerHTML = `<div style="background:#0b3d2e;border:1px solid rgba(201,168,76,.4);border-radius:18px;
       padding:clamp(18px,5vw,30px);max-width:370px;width:100%;text-align:center">
-    <div style="font-family:'Playfair Display',serif;font-size:1.25rem;color:var(--gold);margin-bottom:5px">Inviter des amis ♠</div>
-    <div style="font-family:'Playfair Display',serif;font-size:2.8rem;color:var(--gold);letter-spacing:.3em;font-weight:700;margin:14px 0">${code}</div>
+    <div style="font-family:'Cinzel Decorative',serif;font-size:1.25rem;color:var(--gold);margin-bottom:5px">Inviter des amis ♠</div>
+    <div style="font-family:'Cinzel',serif;font-size:2.8rem;color:var(--gold);letter-spacing:.3em;font-weight:700;margin:14px 0">${code}</div>
     <div style="display:flex;gap:8px">
       <button onclick="navigator.clipboard.writeText('${code}').then(()=>window.UI.showToast('Code copié !'))"
-        style="flex:1;background:linear-gradient(135deg,var(--gold-dark),var(--gold));border:none;border-radius:10px;
-               padding:12px;color:var(--felt-dark);font-family:'Playfair Display',serif;font-size:.92rem;font-weight:700;cursor:pointer;min-height:44px">
+        style="flex:1;background:linear-gradient(135deg,var(--gold-dk),var(--gold));border:none;border-radius:10px;
+               padding:12px;color:var(--bg0);font-family:'Cinzel',serif;font-size:.92rem;font-weight:700;cursor:pointer;min-height:44px">
         Copier le code</button>
       <button onclick="navigator.clipboard.writeText('${link}').then(()=>window.UI.showToast('Lien copié !'))"
         style="flex:1;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:10px;
