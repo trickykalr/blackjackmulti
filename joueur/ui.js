@@ -2,13 +2,15 @@
 //  ui.js — Rendu DOM
 // ═══════════════════════════════════════════════════════════
 
+
 const RED_SUITS = ['♥', '♦'];
 
-// ── 🃏 Rendu d'une carte (CORRIGÉ : utilise les vraies classes CSS) ──
 function renderCard(card) {
   if (card.hidden) return `<div class="card hidden"></div>`;
+
   const isRed = RED_SUITS.includes(card.suit);
   const cls   = isRed ? 'red' : 'black-card';
+
   return `
     <div class="card ${cls}">
       <div class="ci-tl">
